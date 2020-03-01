@@ -1,0 +1,67 @@
+# SCsub
+Import('env')
+
+
+import os.path
+
+
+env_voip_enet = env.Clone()
+
+# Thirdparty source files
+
+#do not disable opus module. This module requires libopus
+#if you want to disable audiostreamopus,
+#enable the module but also enable stub
+#https://github.com/godotengine/godot/blob/master/modules/opus/SCsub#L7
+#assumes static linking
+
+if env['builtin_opus']:
+	thirdparty_dir = "#thirdparty/opus/"
+
+	thirdparty_include_paths = [
+		"",
+		"celt",
+		"opus",
+		"silk",
+		"silk/fixed",
+		"silk/float",
+	]
+	env_voip_enet.Append(CPPPATH=[thirdparty_dir + "/" + dir for dir in thirdparty_include_paths])
+
+	# also requires libogg
+	if env['builtin_libogg']:
+		env_voip_enet.Append(CPPPATH=["#thirdparty/libogg"])
+
+voip_enet_dir = '#modules/enet_voip/'
+capnp_proto = 'godotvoip.capnp'
+
+capnp_suffix = ".capnp"
+
+def _capnp_emitter(target, source, env):
+	target = []
+	for s in source:
+		src = str(s)
+		if src.endswith(capnp_suffix):
+			p_stem = src[:-len(capnp_suffix)]
+		else:
+			p_stem = src
+		target.append(p_stem + '.capnp.h')
+		target.append(p_stem + '.capnp.c++')
+	return target, source
+
+def filter_headers(f_list):
+	l = []
+	for f in f_list:
+		if os.path.splitext(f.rstr())[1] != '.h':
+			l.append(f)
+	return l	
+
+bld = Builder(action="capnp compile -oc++ $SOURCE", \
+#	suffix = '.capnp.c++', \
+	src_suffix = [capnp_suffix], \
+	emitter = _capnp_emitter)
+env_voip_enet['BUILDERS']['Protoc'] = bld
+capnp_target = env_voip_enet.Protoc( capnp_proto )
+sources = Glob("*.cpp")+filter_headers(capnp_target)
+env_voip_enet.add_source_files(env.modules_sources, sources )
+env_voip_enet.Append(CXXFLAGS=['-O2', '-std=c++14'])
