@@ -3,7 +3,6 @@
 
 #include "audio_stream_enet_voip.h"
 
-
 AudioStreamPlaybackEnetVoip::AudioStreamPlaybackEnetVoip() :
 		active(false), offset(0) {
 }
