@@ -116,10 +116,10 @@ AudioStreamEnetVoip::~AudioStreamEnetVoip() {
 }
 
 Ref<AudioStreamPlayback> AudioStreamEnetVoip::instance_playback() {
-	Ref<AudioStreamPlaybackEnetVoip> talking_tree;
-	talking_tree.instance();
-	talking_tree->base = Ref<AudioStreamEnetVoip>(this);
-	return talking_tree;
+	Ref<AudioStreamPlaybackEnetVoip> enet_voip_playback;
+	enet_voip_playback.instance();
+	enet_voip_playback->base = Ref<AudioStreamEnetVoip>(this);
+	return enet_voip_playback;
 }
 
 Error AudioStreamEnetVoip::append_data(const uint8_t *pcm_data, int p_bytes) {
