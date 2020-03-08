@@ -1,12 +1,13 @@
 /* enet_voip.cpp */
-
-#include "enet_voip_enum.h"
-
 #include "core/io/marshalls.h"
 #include "core/os/os.h"
 #include "core/pair.h"
 #include "servers/audio/audio_stream.h"
 
+#include <capnp/message.h>
+#include <capnp/serialize-packed.h>
+
+#include "capnp_translations.h"
 #include "enet_voip.h"
 #include "godotvoip.capnp.h"
 
@@ -75,8 +76,12 @@ void EnetVoip::reset_encoder() {
 	outgoing_sequence_number = 0;
 }
 void EnetVoip::send_text(String msg) {
+	capnp::MallocMessageBuilder message;
+	TextMessage::Builder textMessage = message.initRoot<TextMessage>();
 	CharString m = msg.utf8();
-	//_send_packet(0, PacketType::TEXTMESSAGE, txtMsg, NetworkedMultiplayerPeer::TRANSFER_MODE_RELIABLE);
+	textMessage.setActorId(get_network_unique_id());
+	textMessage.setMessage(capnp::Text::Reader(m.get_data(), m.length()));
+	_send_packet<capnp::MessageBuilder>(0, PacketType::TEXTMESSAGE, message, NetworkedMultiplayerPeer::TRANSFER_MODE_RELIABLE);
 }
 void EnetVoip::send_user_info() {
 	_send_user_info(0);
@@ -84,20 +89,29 @@ void EnetVoip::send_user_info() {
 void EnetVoip::_send_user_info(int p_to) {
 }
 
-//void EnetVoip::_send_packet(int p_to, PacketType type, , NetworkedMultiplayerPeer::TransferMode transferMode){
-//}
+template <class packetBuilder>
+void EnetVoip::_send_packet(int p_to, PacketType type, packetBuilder &message, NetworkedMultiplayerPeer::TransferMode transferMode) {
+	Vector<uint8_t> buf;
+	GVectorBuffer packet(buf);
+	packet.write(&type, 1);
+	::capnp::writePackedMessage(packet, message);
+	network_peer->set_transfer_mode(transferMode);
+	network_peer->set_target_peer(p_to);
+	network_peer->put_packet(buf.ptr(), buf.size());
+}
 
 void EnetVoip::_network_process_packet(int p_from, const uint8_t *p_packet, int p_packet_len) {
 	PacketType packet_type = (PacketType)p_packet[0];
 	const uint8_t *proto_packet = &p_packet[1];
 	int proto_packet_len = p_packet_len - 1;
 	switch (packet_type) {
-		case PacketType::VERSION: {
-		} break;
 		case PacketType::AUDIOPACKET: {
 			//_process_audio_packet(p_from, proto_packet, proto_packet_len);
 		} break;
 		case PacketType::TEXTMESSAGE: {
+
+		} break;
+		case PacketType::VERSION: {
 
 		} break;
 		case PacketType::USERINFO: {

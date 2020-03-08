@@ -10,11 +10,10 @@
 #include "core/vector.h"
 #include "scene/main/timer.h"
 
+#include <opus.h>
+
 #include "audio_stream_enet_voip.h"
 #include "enet_voip_enum.h"
-
-#include <capnp/serialize-packed.h>
-#include <opus.h>
 
 class EnetVoip : public Reference {
 	GDCLASS(EnetVoip, Reference);
@@ -42,7 +41,8 @@ private:
 	int last_send_cache_id;
 	Ref<NetworkedMultiplayerPeer> network_peer;
 	void _send_user_info(int p_to);
-	//void _send_packet(int p_to, PacketType type, ?? &message, NetworkedMultiplayerPeer::TransferMode transfer);
+	template <class packetBuilder>
+	void _send_packet(int p_to, PacketType type, packetBuilder &message, NetworkedMultiplayerPeer::TransferMode transfer);
 	void _network_process_packet(int p_from, const uint8_t *p_packet, int p_packet_len);
 	void _network_poll();
 	void _network_peer_connected(int p_id);

@@ -1,9 +1,9 @@
 #pragma once
 
 enum class PacketType {
-	VERSION = 0,
+	AUDIOPACKET = 0,
 	TEXTMESSAGE = 1,
-	AUDIOPACKET = 2,
+	VERSION = 2,
 	USERINFO = 3
 };
 
