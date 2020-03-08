@@ -9,8 +9,7 @@
 #include "godotvoip_generated.h"
 
 void EnetVoip::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_network_peer", "peer"), &EnetVoip::set_network_peer);
-	ClassDB::bind_method(D_METHOD("is_network_server"), &EnetVoip::is_network_server);
+//	ClassDB::bind_method(D_METHOD("set_multiplayer_peer", "peer"), &EnetVoip::set_multiplayer_peer);
 	ClassDB::bind_method(D_METHOD("has_network_peer"), &EnetVoip::has_network_peer);
 	ClassDB::bind_method(D_METHOD("get_network_connected_peers"), &EnetVoip::get_network_connected_peers);
 	ClassDB::bind_method(D_METHOD("get_network_unique_id"), &EnetVoip::get_network_unique_id);
@@ -91,9 +90,10 @@ void EnetVoip::_send_user_info(int p_to) {
 
 template <class packetBuilder>
 void EnetVoip::_send_packet(int p_to, PacketType type, packetBuilder &message, NetworkedMultiplayerPeer::TransferMode transferMode) {
-	network_peer->set_transfer_mode(transferMode);
-	network_peer->set_target_peer(p_to);
-	network_peer->put_packet(message.GetBufferPointer(), message.GetSize());
+	Vector<uint8_t> p_data;
+	p_data.resize(message.GetSize());
+	memcpy(p_data.ptrw(), message.GetBufferPointer(), message.GetSize());
+	SceneTree::get_singleton()->get_multiplayer()->send_bytes(p_data, (int)type, transferMode);
 }
 
 void EnetVoip::_network_process_packet(int p_from, const uint8_t *p_packet, int p_packet_len) {
@@ -124,35 +124,29 @@ void EnetVoip::_network_process_packet(int p_from, const uint8_t *p_packet, int 
 	}
 }
 
-bool EnetVoip::is_network_server() const {
-
-	ERR_FAIL_COND_V(!network_peer.is_valid(), false);
-	return network_peer->is_server();
-}
-
 bool EnetVoip::has_network_peer() const {
-	return network_peer.is_valid();
+	return SceneTree::get_singleton()->has_network_peer();
 }
 
-void EnetVoip::set_network_peer(const Ref<NetworkedMultiplayerPeer> &p_network_peer) {
-	if (network_peer.is_valid()) {
-		network_peer->disconnect("peer_connected", callable_mp(this, &EnetVoip::_network_peer_connected));
-		network_peer->disconnect("peer_disconnected", callable_mp(this, &EnetVoip::_network_peer_disconnected));
-		network_peer->disconnect("connection_succeeded", callable_mp(this, &EnetVoip::_connected_to_server));
-		network_peer->disconnect("connection_failed", callable_mp(this, &EnetVoip::_connection_failed));
-		network_peer->disconnect("server_disconnected", callable_mp(this, &EnetVoip::_server_disconnected));
+void EnetVoip::set_multiplayer_peer(const Ref<MultiplayerAPI> &p_multiplayer_peer) {
+	if (multiplayer_peer.is_valid()) {
+		multiplayer_peer->disconnect("peer_connected", callable_mp(this, &EnetVoip::_network_peer_connected));
+		multiplayer_peer->disconnect("peer_disconnected", callable_mp(this, &EnetVoip::_network_peer_disconnected));
+		multiplayer_peer->disconnect("connection_succeeded", callable_mp(this, &EnetVoip::_connected_to_server));
+		multiplayer_peer->disconnect("connection_failed", callable_mp(this, &EnetVoip::_connection_failed));
+		multiplayer_peer->disconnect("server_disconnected", callable_mp(this, &EnetVoip::_server_disconnected));
 		last_send_cache_id = 1;
 	}
 
-	WARN_PRINT("Supplied NetworkedNetworkPeer must be connecting or connected.");
-	ERR_FAIL_COND(p_network_peer.is_valid() && p_network_peer->get_connection_status() == NetworkedMultiplayerPeer::CONNECTION_DISCONNECTED);
-	network_peer = p_network_peer;
-	if (network_peer.is_valid()) {
-		network_peer->connect("peer_connected", callable_mp(this, &EnetVoip::_network_peer_connected));
-		network_peer->connect("peer_disconnected", callable_mp(this, &EnetVoip::_network_peer_disconnected));
-		network_peer->connect("connection_succeeded", callable_mp(this, &EnetVoip::_connected_to_server));
-		network_peer->connect("connection_failed", callable_mp(this, &EnetVoip::_connection_failed));
-		network_peer->connect("server_disconnected", callable_mp(this, &EnetVoip::_server_disconnected));
+	WARN_PRINT("Supplied MultiplayerAPI must be connecting or connected.");
+	//ERR_FAIL_COND(p_multiplayer_peer.is_valid() && p_multiplayer_peer->get_connection_status() == NetworkedMultiplayerPeer::CONNECTION_DISCONNECTED);
+	multiplayer_peer = p_multiplayer_peer;
+	if (multiplayer_peer.is_valid()) {
+		multiplayer_peer->connect("peer_connected", callable_mp(this, &EnetVoip::_network_peer_connected));
+		multiplayer_peer->connect("peer_disconnected", callable_mp(this, &EnetVoip::_network_peer_disconnected));
+		multiplayer_peer->connect("connection_succeeded", callable_mp(this, &EnetVoip::_connected_to_server));
+		multiplayer_peer->connect("connection_failed", callable_mp(this, &EnetVoip::_connection_failed));
+		multiplayer_peer->connect("server_disconnected", callable_mp(this, &EnetVoip::_server_disconnected));
 	}
 }
 void EnetVoip::_connection_failed() {
@@ -171,43 +165,18 @@ void EnetVoip::_server_disconnected() {
 	emit_signal("server_disconnected");
 }
 int EnetVoip::get_network_unique_id() const {
-	ERR_FAIL_COND_V(!network_peer.is_valid(), 0);
-	return network_peer->get_unique_id();
+	
+	ERR_FAIL_COND_V(!has_network_peer(), 0);
+	return SceneTree::get_singleton()->get_network_unique_id();
 }
 Vector<int> EnetVoip::get_network_connected_peers() const {
-	ERR_FAIL_COND_V(!network_peer.is_valid(), Vector<int>());
-	Vector<int> ret;
-	const int *k = NULL;
-	return ret;
+	ERR_FAIL_COND_V(!has_network_peer(), Vector<int>());
+	return SceneTree::get_singleton()->get_network_connected_peers();
 }
 
 void EnetVoip::_network_poll() {
 
-	if (!network_peer.is_valid() || network_peer->get_connection_status() == NetworkedMultiplayerPeer::CONNECTION_DISCONNECTED)
-		return;
-
-	network_peer->poll();
-
-	if (!network_peer.is_valid()) //it's possible that polling might have resulted in a disconnection, so check here
-		return;
-
-	while (network_peer->get_available_packet_count()) {
-
-		int sender = network_peer->get_packet_peer();
-		const uint8_t *packet;
-		int len;
-
-		Error err = network_peer->get_packet(&packet, len);
-		if (err != OK) {
-			ERR_PRINT("Error getting packet!");
-		}
-
-		_network_process_packet(sender, packet, len);
-
-		if (!network_peer.is_valid()) {
-			break; //it's also possible that a packet or RPC caused a disconnection, so also check here
-		}
-	}
+	
 }
 
 void EnetVoip::poll() {

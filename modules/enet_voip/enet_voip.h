@@ -3,7 +3,9 @@
 #define ENET_VOIP_H
 
 #include "core/error_macros.h"
+#include "core/io/multiplayer_api.h"
 #include "core/io/networked_multiplayer_peer.h"
+
 #include "core/print_string.h"
 #include "core/reference.h"
 #include "core/ustring.h"
@@ -24,9 +26,10 @@ protected:
 public:
 	EnetVoip();
 	~EnetVoip();
-	void set_network_peer(const Ref<NetworkedMultiplayerPeer> &p_network_peer);
+	void set_multiplayer_peer(const Ref<MultiplayerAPI> &p_multiplayer_peer);
 	Vector<int> get_network_connected_peers() const;
 	bool is_network_server() const;
+	bool set_multiplayer_peer() const;
 	bool has_network_peer() const;
 	int get_network_unique_id() const;
 	void send_user_info();
@@ -39,7 +42,7 @@ public:
 
 private:
 	int last_send_cache_id;
-	Ref<NetworkedMultiplayerPeer> network_peer;
+	Ref<MultiplayerAPI> multiplayer_peer;
 	void _send_user_info(int p_to);
 	template <class packetBuilder>
 	void _send_packet(int p_to, PacketType type, packetBuilder &message, NetworkedMultiplayerPeer::TransferMode transfer);
