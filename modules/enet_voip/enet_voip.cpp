@@ -97,23 +97,30 @@ void EnetVoip::_send_packet(int p_to, PacketType type, packetBuilder &message, N
 }
 
 void EnetVoip::_network_process_packet(int p_from, const uint8_t *p_packet, int p_packet_len) {
-	PacketType packet_type = (PacketType)p_packet[0];
-	const uint8_t *proto_packet = &p_packet[1];
-	int proto_packet_len = p_packet_len - 1;
+	flatbuffers::Verifier packetvert(p_packet, p_packet_len);
+	bool ok = GodotProto::VerifyPacketBuffer(packetvert);
+	auto packet = GodotProto::GetPacket(p_packet);
+	if(ok) {
+		switch (packet->payload_type()) {
+			case GodotProto::PacketPayload_AudioPacket: {
+				//_process_audio_packet(p_from, proto_packet, proto_packet_len);
+			} break;
+			case GodotProto::PacketPayload_TextMessage: {
+				auto txt = packet->payload_as_TextMessage();
+				auto s = txt -> message();
+				String msg = String::utf8(s->c_str(), s->Length());
+				this->emit_signal("text_message", msg, p_from);
+			} break;
+			case GodotProto::PacketPayload_Version: {
 
-	switch (packet_type) {
-		case PacketType::AUDIOPACKET: {
-			//_process_audio_packet(p_from, proto_packet, proto_packet_len);
-		} break;
-		case PacketType::TEXTMESSAGE: {
-		} break;
-		case PacketType::VERSION: {
-
-		} break;
-		case PacketType::USERINFO: {
+			} break;
+			case GodotProto::PacketPayload_UserInfo: {
+			}
+			default:
+				break;
 		}
-		default:
-			break;
+	} else {
+		WARN_PRINT("Malformed VOIP Packet: " +itos(p_from));
 	}
 }
 
