@@ -4,12 +4,9 @@
 #include "core/pair.h"
 #include "servers/audio/audio_stream.h"
 
-#include <capnp/message.h>
-#include <capnp/serialize-packed.h>
-
-#include "capnp_translations.h"
 #include "enet_voip.h"
-#include "godotvoip.capnp.h"
+#include "flatbuffers/flatbuffers.h"
+#include "godotvoip_generated.h"
 
 void EnetVoip::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_network_peer", "peer"), &EnetVoip::set_network_peer);
@@ -76,12 +73,15 @@ void EnetVoip::reset_encoder() {
 	outgoing_sequence_number = 0;
 }
 void EnetVoip::send_text(String msg) {
-	capnp::MallocMessageBuilder message;
-	TextMessage::Builder textMessage = message.initRoot<TextMessage>();
 	CharString m = msg.utf8();
-	textMessage.setActorId(get_network_unique_id());
-	textMessage.setMessage(capnp::Text::Reader(m.get_data(), m.length()));
-	_send_packet<capnp::MessageBuilder>(0, PacketType::TEXTMESSAGE, message, NetworkedMultiplayerPeer::TRANSFER_MODE_RELIABLE);
+	flatbuffers::FlatBufferBuilder builder;
+
+	auto message = builder.CreateSharedString(m.get_data(), m.length());
+	auto textMessage = GodotProto::CreateTextMessage(builder, get_network_unique_id(), 0, 0, message);
+	auto rootPacket = GodotProto::CreatePacket(builder, GodotProto::PacketPayload_TextMessage, textMessage.Union());
+	builder.Finish(rootPacket);
+
+	_send_packet<flatbuffers::FlatBufferBuilder>(0, PacketType::TEXTMESSAGE, builder, NetworkedMultiplayerPeer::TRANSFER_MODE_RELIABLE);
 }
 void EnetVoip::send_user_info() {
 	_send_user_info(0);
@@ -91,25 +91,21 @@ void EnetVoip::_send_user_info(int p_to) {
 
 template <class packetBuilder>
 void EnetVoip::_send_packet(int p_to, PacketType type, packetBuilder &message, NetworkedMultiplayerPeer::TransferMode transferMode) {
-	Vector<uint8_t> buf;
-	GVectorBuffer packet(buf);
-	packet.write(&type, 1);
-	::capnp::writePackedMessage(packet, message);
 	network_peer->set_transfer_mode(transferMode);
 	network_peer->set_target_peer(p_to);
-	network_peer->put_packet(buf.ptr(), buf.size());
+	network_peer->put_packet(message.GetBufferPointer(), message.GetSize());
 }
 
 void EnetVoip::_network_process_packet(int p_from, const uint8_t *p_packet, int p_packet_len) {
 	PacketType packet_type = (PacketType)p_packet[0];
 	const uint8_t *proto_packet = &p_packet[1];
 	int proto_packet_len = p_packet_len - 1;
+
 	switch (packet_type) {
 		case PacketType::AUDIOPACKET: {
 			//_process_audio_packet(p_from, proto_packet, proto_packet_len);
 		} break;
 		case PacketType::TEXTMESSAGE: {
-
 		} break;
 		case PacketType::VERSION: {
 

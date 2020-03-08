@@ -32,21 +32,22 @@ if env['builtin_opus']:
 	if env['builtin_libogg']:
 		env_voip_enet.Append(CPPPATH=["#thirdparty/libogg"])
 
+env_voip_enet.Append(CPPPATH=["#modules/enet_voip/thirdparty_includes"])
+
 voip_enet_dir = '#modules/enet_voip/'
-capnp_proto = 'godotvoip.capnp'
+flatbuffers_proto = 'godotvoip.fbs'
 
-capnp_suffix = ".capnp"
+flatbuffers_suffix = ".fbs"
 
-def _capnp_emitter(target, source, env):
+def _flatbuffers_emitter(target, source, env):
 	target = []
 	for s in source:
 		src = str(s)
-		if src.endswith(capnp_suffix):
-			p_stem = src[:-len(capnp_suffix)]
+		if src.endswith(flatbuffers_suffix):
+			p_stem = src[:-len(flatbuffers_suffix)]
 		else:
 			p_stem = src
-		target.append(p_stem + '.capnp.h')
-		target.append(p_stem + '.capnp.c++')
+		target.append(p_stem + '_generated.h')
 	return target, source
 
 def filter_headers(f_list):
@@ -56,12 +57,12 @@ def filter_headers(f_list):
 			l.append(f)
 	return l	
 
-bld = Builder(action="capnp compile -oc++ $SOURCE", \
-#	suffix = '.capnp.c++', \
-	src_suffix = [capnp_suffix], \
-	emitter = _capnp_emitter)
+bld = Builder(action="flatc --binary --natural-utf8 --cpp $SOURCE", \
+#	suffix = '_generated.h', \
+	src_suffix = [flatbuffers_suffix], \
+	emitter = _flatbuffers_emitter)
 env_voip_enet['BUILDERS']['Protoc'] = bld
-capnp_target = env_voip_enet.Protoc( capnp_proto )
-sources = Glob("*.cpp")+filter_headers(capnp_target)
+flatbuffers_target = env_voip_enet.Protoc( flatbuffers_proto )
+sources = Glob("*.cpp")+filter_headers(flatbuffers_target)
 env_voip_enet.add_source_files(env.modules_sources, sources )
 env_voip_enet.Append(CXXFLAGS=['-O2', '-std=c++14'])

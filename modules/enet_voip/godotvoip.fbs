@@ -1,0 +1,39 @@
+namespace GodotProto;
+
+table TextMessage {
+	// Enet id
+	actorId :int;
+	// Session
+	sessionId :int;
+	// Channel
+	channelId :int;
+	message :string;
+}
+
+table Version {
+	// 2-byte Major, 1-byte Minor and 1-byte Patch version number.
+	versionMajor :uint;
+	versionMinor :ubyte;
+	versionPatch :ubyte;
+	// Client Release Name
+	release :string;
+	// OS Name
+	os :string;
+	osVersion :string;
+}
+
+table UserInfo {
+	userId :int;
+}
+
+table AudioPacket {
+	header :ubyte;
+	sequenceNumber :uint;
+	payload :[ubyte];
+}
+
+union PacketPayload { TextMessage, Version, AudioPacket, UserInfo }
+table Packet {
+	payload : PacketPayload;
+}
+root_type Packet;
